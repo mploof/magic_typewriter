@@ -15,7 +15,7 @@ from xi_labs import voices
 import listener
 
 ###### Global Vars ######
-with open("config.yaml", 'r') as file:
+with open("../config.yaml", 'r') as file:
     config = yaml.safe_load(file)
 
 VOICE_ID = voices[config["default_voice"]]
@@ -25,7 +25,7 @@ default_context_file = config["default_context_file"]
 with open(f"./{context_dir}/{default_context_file}", "r") as f:
     default_context = f.read().strip()
        
-with open(f"./keys/{config['gpt_key_file_name']}", "r") as f:
+with open(f"../keys/{config['gpt_key_file_name']}", "r") as f:
     OPENAI_API_KEY = f.read().strip()
 
 # Set OpenAI API key
