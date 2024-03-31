@@ -215,6 +215,9 @@ async def handle_text_in():
         elif user_query == "clear":
             current_conversation.clear_conversation()
             continue
+        elif user_query == "undo":
+            current_conversation.undo()
+            continue
         elif user_query is None or user_query == "":
             continue
         elif user_query.lower().startswith("talk to "):
@@ -253,7 +256,7 @@ def switch_conversation(conversation_name):
         
     current_conversation.activate()
 
-async def handle_voice_in(messages):
+async def handle_voice_in():
     global current_conversation
     transcript_queue = queue.Queue()
     prompt_queue = queue.Queue()
@@ -284,8 +287,7 @@ async def handle_voice_in(messages):
                     parser_thread.join()
                     break
                 elif user_query == "undo":
-                    messages.pop()
-                    messages.pop()
+                    current_conversation.undo()
                     continue
                 elif user_query.startswith("talk to "):
                     character_name = user_query.split(" ")[2]
