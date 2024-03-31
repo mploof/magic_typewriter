@@ -10,7 +10,7 @@ import audio
 voices = {
     "michael": "d5p9QsIisbcRbI3NQ5FR",
     "samantha": "bjehOvr3TnhggNkXv7bp",
-    "jessi": "09AoN6tYyW3VSTQqCo7C",
+    "sally": "09AoN6tYyW3VSTQqCo7C",
     "nina": "P2GZl52xQmbWlMkeefio",
     "tiffany": "x9leqCOAXOcmC5jtkq65",
     "ilya": "CnV6BQOHeZCIv4McSXDH",

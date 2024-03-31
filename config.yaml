@@ -1,7 +1,7 @@
-# Path do your MPV executable
+###### Path do your MPV executable
 mpv_path: "C:\\Program Files\\mpv\\mpv.exe"
 
-# Eleven Labs settings
+###### Eleven Labs Settings
 default_voice: michael
 stability: 0.3
 similarity_boost: 0.9
@@ -9,6 +9,25 @@ style: 0.0
 use_speaker_boost: True
 xi_key_file_name: elevenlabs_api.key
 
-# ChatGPT Settings
-max_words: 30
+###### Voice Input Settings
+default_wake_word: computer
+
+###### ChatGPT Settings
 gpt_key_file_name: chatgpt_api.key
+# gpt_key_file_name: chatgpt_api.guest.key
+chat_temperature: 1
+max_tokens: 40
+
+# chat_model: gpt-4
+# chat_model: gpt-4-turbo-preview
+# chat_model: gpt-4-vision-preview
+chat_model: gpt-3.5-turbo
+
+# Options: text / voice
+chat_input_mode: text
+
+# Options: text / voice
+chat_output_mode: text
+
+context_dir: ./contexts
+default_context_file: default_context.txt
