@@ -29,5 +29,5 @@ chat_input_mode: text
 # Options: text / voice
 chat_output_mode: text
 
-context_dir: ../contexts
+context_dir: ./contexts
 default_context_file: default_context.txt

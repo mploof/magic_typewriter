@@ -17,10 +17,10 @@ voices = {
     "cheryl": "wVZ5qbJFYF3snuC65nb4"
 }
 
-with open("../config.yaml", 'r') as file:
+with open("./config.yaml", 'r') as file:
     config = yaml.safe_load(file)
 
-with open(f"../keys/{config['xi_key_file_name']}", "r") as f:
+with open(f"./keys/{config['xi_key_file_name']}", "r") as f:
     XI_API_KEY = f.read().strip()
 
 def get_voice_list():

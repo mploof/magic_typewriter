@@ -7,7 +7,7 @@ import sounddevice as sd
 
 import yaml
 
-with open("../config.yaml", 'r') as file:
+with open("./config.yaml", 'r') as file:
     config = yaml.safe_load(file)
 
 # Global or shared state to control recording
