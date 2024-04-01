@@ -91,6 +91,7 @@ async def text_chunker(chunks):
 
     buffer = ''  # Initialize the sentence as an empty string
     async for text in chunks:
+        
         # Strip any leading space to avoid unwanted spaces before punctuation
         starts_with_space = text.startswith(' ')
         text = text.lstrip()
@@ -112,7 +113,8 @@ async def text_chunker(chunks):
             yield buffer
             buffer = ' '
 
-    yield buffer
+    if buffer:
+        yield buffer.strip()
 
 
 async def chat_completion(
@@ -155,7 +157,7 @@ async def chat_completion(
         conversation.add_message('assistant', this_message) # Update conversation history
 
     if config["chat_output_mode"] == "voice":
-        await xi_labs.text_to_speech_input_streaming(text_iterator(), conversation.voice_id)
+        await xi_labs.text_to_speech_input_streaming(text_iterator(), text_chunker, conversation.voice_id)
     else:
         async for chunk in text_chunker(text_iterator()):
             print(chunk, end="", sep="", flush=True)
@@ -174,6 +176,7 @@ def transcript_parser_task(transcript_queue, prompt_queue, terminate_flag):
     """
     
     current_wake_word = config["default_wake_word"]
+    override_wake_word = "computer"
     
     # This is a task that runs in a loop within a separate thread
     while True:
@@ -191,10 +194,17 @@ def transcript_parser_task(transcript_queue, prompt_queue, terminate_flag):
             print("F:", transcript['text'])
             
             # Check for the presence of the wake word in the transcript, and if found, extract the prompt
-            if current_wake_word in transcript['text'].lower():
-                prompt = transcript['text'][transcript['text'].lower().index(current_wake_word) + len(current_wake_word):].strip()
-                print("Text after wake word:", prompt)
-                prompt_queue.put(prompt)
+            if config["use_wake_word"]:
+                if current_wake_word in transcript['text'].lower():
+                    prompt = transcript['text'][transcript['text'].lower().index(current_wake_word) + len(current_wake_word):].strip()
+                    print("Text after wake word:", prompt)
+                    prompt_queue.put(prompt)
+                elif override_wake_word is not None and override_wake_word in transcript['text'].lower():
+                    prompt = transcript['text'][transcript['text'].lower().index(override_wake_word) + len(override_wake_word):].strip()
+                    print("Text after override wake word:", prompt)
+                    prompt_queue.put(prompt)
+            elif transcript['text'] is not None and transcript['text'].strip() != "":
+                prompt_queue.put(transcript['text'])
                 
         elif status == "partial":
             # Print the partial transcript for debugging purposes
@@ -212,52 +222,12 @@ async def handle_text_in():
         
         if user_query.lower() == "exit":  # Provide a way to exit the loop
             break
-        elif user_query == "clear":
-            current_conversation.clear_conversation()
-            continue
-        elif user_query == "undo":
-            current_conversation.undo()
-            continue
-        elif user_query is None or user_query == "":
-            continue
-        elif user_query.lower().startswith("talk to "):
-            character_name = user_query.split(" ")[2]
-            if character_name in conversations:
-                print(f"Resuming conversation with {character_name}...")
-                current_conversation = conversations[character_name]
-            else:
-                print(f"Starting conversation with {character_name}...")
-                current_conversation = Conversation(character_name)
-                conversations[character_name] = current_conversation
-            continue
-        elif user_query.startswith("IMAGE: "):
-            image_path = user_query.split(" ")[1]
-            content = [
-                {"type": "text", "text": " ".join(str(item) for item in user_query.split(" ")[2:])},
-                {"type": "image_url", "image_url": {"url": image_path}}
-            ]
         else:
-            content = user_query
+            await handle_input(user_query)
 
-        current_conversation.add_message('user', content)  # Append the user's message to the history
-
-        await chat_completion(current_conversation)  # Await the chat completion and text-to-speech for the user's query
-
-def switch_conversation(conversation_name):
-    global current_conversation
-    
-    if conversation_name in conversations:
-        print(f"Resuming conversation with {conversation_name}...")
-        current_conversation = conversations[conversation_name]
-    else:
-        print(f"Starting conversation with {conversation_name}...")
-        current_conversation = Conversation(conversation_name)
-        conversations[conversation_name] = current_conversation
-        
-    current_conversation.activate()
 
 async def handle_voice_in():
-    global current_conversation
+    
     transcript_queue = queue.Queue()
     prompt_queue = queue.Queue()
         
@@ -277,7 +247,7 @@ async def handle_voice_in():
         while True:
             if prompt_queue.qsize() > 0:
                 print("Prompt queue size:", prompt_queue.qsize())
-                user_query = prompt_queue.get()
+                user_query:str = prompt_queue.get()
                 user_query = user_query.strip()
                 
                 if user_query.lower() == "exit":  # Provide a way to exit the loop
@@ -286,23 +256,54 @@ async def handle_voice_in():
                     listener_thread.join()
                     parser_thread.join()
                     break
-                elif user_query == "undo":
-                    current_conversation.undo()
-                    continue
-                elif user_query.startswith("talk to "):
-                    character_name = user_query.split(" ")[2]
-                    switch_conversation(character_name)
-                    continue
-                elif user_query is None or user_query == "":
-                    continue
-                else:
-                    current_conversation.add_message('user', user_query)  # Append the user's message to the history
-                    # Await the chat completion and text-to-speech for the user's query
-                    await chat_completion(current_conversation)
+                else:  
+                    await handle_input(user_query)
     finally:
         terminate_flag.set()
         listener_thread.join()
         parser_thread.join()
+
+
+async def handle_input(user_query:str):
+    global current_conversation
+    
+    if user_query.startswith("talk to "):
+        character_name = user_query.split(" ")[2]
+        switch_conversation(character_name)
+        return
+    elif user_query is None or user_query == "":
+        return
+    elif user_query == "clear":
+        current_conversation.clear_conversation()
+        return
+    elif user_query == "undo":
+        current_conversation.undo()
+        return
+    elif user_query.startswith("IMAGE: "):
+        image_path = user_query.split(" ")[1]
+        content = [
+            {"type": "text", "text": " ".join(str(item) for item in user_query.split(" ")[2:])},
+            {"type": "image_url", "image_url": {"url": image_path}}
+        ]
+    else:
+        content = user_query
+
+    current_conversation.add_message('user', content)  # Append the user's message to the history
+    await chat_completion(current_conversation)  # Await the chat completion and text-to-speech for the user's query
+
+
+def switch_conversation(conversation_name):
+    global current_conversation
+    
+    if conversation_name in conversations:
+        print(f"Resuming conversation with {conversation_name}...")
+        current_conversation = conversations[conversation_name]
+    else:
+        print(f"Starting conversation with {conversation_name}...")
+        current_conversation = Conversation(conversation_name)
+        conversations[conversation_name] = current_conversation
+        
+    current_conversation.activate()
 
 
 async def main():

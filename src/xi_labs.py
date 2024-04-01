@@ -14,7 +14,8 @@ voices = {
     "nina": "P2GZl52xQmbWlMkeefio",
     "tiffany": "x9leqCOAXOcmC5jtkq65",
     "ilya": "CnV6BQOHeZCIv4McSXDH",
-    "cheryl": "wVZ5qbJFYF3snuC65nb4"
+    "cheryl": "wVZ5qbJFYF3snuC65nb4",
+    "jennifer": "7NEwj4nuis0eiAI9AhKF"
 }
 
 with open("./config.yaml", 'r') as file:
@@ -98,29 +99,9 @@ def text_to_speech(
         print(response.text)
 
 
-async def text_chunker(chunks):
-    """Split text into chunks, ensuring to not break sentences."""
-    splitters = (".", ",", "?", "!", ";", ":", "—", "-", "(", ")", "[", "]", "}", " ")
-    buffer = ""
-
-    async for text in chunks:
-        if text is None:  # Skip None values
-            continue
-        elif buffer.endswith(splitters):
-            yield buffer + " "
-            buffer = text
-        elif text.startswith(splitters):
-            yield buffer + text[0] + " "
-            buffer = text[1:]
-        else:
-            buffer += text
-
-    if buffer:
-        yield buffer + " "
-  
-
 async def text_to_speech_input_streaming(
     text_iterator,
+    text_chunker_fn,
     voice_id,
     stability=0.4,
     similarity_boost=0.9,
@@ -130,41 +111,44 @@ async def text_to_speech_input_streaming(
     """Send text to ElevenLabs API and stream the returned audio."""
     uri = f"wss://api.elevenlabs.io/v1/text-to-speech/{voice_id}/stream-input?model_id=eleven_monolingual_v1"
 
-    async with websockets.connect(uri) as websocket:
-        await websocket.send(json.dumps({
-            "text": " ",
-            "voice_settings": 
-            {
-                "stability":stability,
-                "similarity_boost": similarity_boost,
-                "style": style,
-                "use_speaker_boost": use_speaker_boost
-            },
-            "xi_api_key": XI_API_KEY,
-        }))
+    try:
+        async with websockets.connect(uri) as websocket:
+            await websocket.send(json.dumps({
+                "text": " ",
+                "voice_settings": 
+                {
+                    "stability":stability,
+                    "similarity_boost": similarity_boost,
+                    "style": style,
+                    "use_speaker_boost": use_speaker_boost
+                },
+                "xi_api_key": XI_API_KEY,
+            }))
 
-        async def listen():
-            """Listen to the websocket for audio data and stream it."""
-            while True:
-                try:
-                    message = await websocket.recv()
-                    data = json.loads(message)
-                    if data.get("audio"):
-                        yield base64.b64decode(data["audio"])
-                    elif data.get('isFinal'):
+            async def listen():
+                """Listen to the websocket for audio data and stream it."""
+                while True:
+                    try:
+                        message = await websocket.recv()
+                        data = json.loads(message)
+                        if data.get("audio"):
+                            yield base64.b64decode(data["audio"])
+                        elif data.get('isFinal'):
+                            break
+                    except websockets.exceptions.ConnectionClosed:
+                        print("Connection closed")
                         break
-                except websockets.exceptions.ConnectionClosed:
-                    print("Connection closed")
-                    break
 
-        listen_task = asyncio.create_task(audio.stream(listen()))
+            listen_task = asyncio.create_task(audio.stream(listen()))
 
-        async for text in text_chunker(text_iterator):
-            await websocket.send(json.dumps({"text": text, "try_trigger_generation": True}))
+            async for text in text_chunker_fn(text_iterator):
+                await websocket.send(json.dumps({"text": text, "try_trigger_generation": True}))
 
-        await websocket.send(json.dumps({"text": ""}))
+            await websocket.send(json.dumps({"text": ""}))
 
-        await listen_task
+            await listen_task
+    except asyncio.TimeoutError:
+        print("Connection timed out.")
 
 if __name__ == "__main__":
     get_voice_list()
