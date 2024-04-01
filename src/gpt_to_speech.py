@@ -4,7 +4,6 @@ import json
 import threading
 import queue
 import yaml
-from pprint import pprint
 
 ###### Third-Party Imports ######
 from openai import AsyncOpenAI
@@ -18,7 +17,6 @@ import listener
 with open("./config.yaml", 'r') as file:
     config = yaml.safe_load(file)
 
-VOICE_ID = voices[config["default_voice"]]
 context_dir = config["context_dir"]
 default_context_file = config["default_context_file"]
     
@@ -33,6 +31,9 @@ aclient = AsyncOpenAI(api_key=OPENAI_API_KEY)
 conversations = {}
 current_conversation = None
 wake_word_queue = queue.Queue()
+
+
+###### Classes ######
 
 class Conversation:
     
@@ -84,6 +85,7 @@ class Conversation:
     def activate(self):
         print(f"Activating conversation with {self.name}...")
         wake_word_queue.put(self.name)
+
 
 ###### Functions ######
 
@@ -146,6 +148,7 @@ async def chat_completion(
     )
     
     async def text_iterator():
+        
         this_message = ""
         async for chunk in response:
             delta = chunk.choices[0].delta
@@ -214,6 +217,7 @@ def transcript_parser_task(transcript_queue, prompt_queue, terminate_flag):
 
 
 async def handle_text_in():
+    
     global current_conversation
     
     while True:
@@ -265,6 +269,7 @@ async def handle_voice_in():
 
 
 async def handle_input(user_query:str):
+    
     global current_conversation
     
     if user_query.startswith("talk to "):
@@ -293,6 +298,7 @@ async def handle_input(user_query:str):
 
 
 def switch_conversation(conversation_name):
+    
     global current_conversation
     
     if conversation_name in conversations:
