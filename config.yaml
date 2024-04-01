@@ -11,12 +11,13 @@ xi_key_file_name: elevenlabs_api.key
 
 ###### Voice Input Settings
 default_wake_word: computer
+use_wake_word: True
 
 ###### ChatGPT Settings
 gpt_key_file_name: chatgpt_api.key
 # gpt_key_file_name: chatgpt_api.guest.key
 chat_temperature: 1
-max_tokens: 40
+max_tokens: 100
 
 # chat_model: gpt-4
 # chat_model: gpt-4-turbo-preview
@@ -24,10 +25,10 @@ max_tokens: 40
 chat_model: gpt-3.5-turbo
 
 # Options: text / voice
-chat_input_mode: text
+chat_input_mode: voice
 
 # Options: text / voice
-chat_output_mode: text
+chat_output_mode: voice
 
 context_dir: ./contexts
 default_context_file: default_context.txt
