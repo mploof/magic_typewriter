@@ -81,6 +81,8 @@ Run PowerShell as administrator
 
 ## Execution
 
+Currently, only the chat interface component of this project is implemented. When you execute the run script, it will open a chat interface with the given input/output modes specified in `config.yaml`. See more on chat modes below.
+
 ### Linux
 
 ```
@@ -92,3 +94,51 @@ Run PowerShell as administrator
 ```
 ./run.ps1
 ```
+
+## How to Use The Chat
+
+### Voice Input
+
+In voice input mode, the application will constantly listen for speech input. Each time there is a break in speech, the input is finalized. 
+
+If `use_wake_word` is `True`, when a speech input is finalized, it will look for the first instances of a wake word, then use everything after that as the command / chat input.
+
+If `use_wake_word` is `False`, the contents of each finalized speech will be interpreted as a command / chat input. This is not a good option to use if there is ambient background speech, or you are having conversations with people other than the chat interface. It can also be a bit finicky and capture non-speech fragments as words, leading to unintended input. This is mainly useful if you're having an uninterrupted conversation with the chat agent.
+
+The default/override wake word is set in `config.yaml`. The override wake word will always work in all contexts, when when speaking to a particular character, you may also use their name as the wake word. See more about characters below.
+
+Speech-to-text in this application is handled on your local machine, so no need to worry about API costs.
+
+### Text Input
+
+No need for a "wake word." Everything you type will be directly interpreted as a command for chat input.
+
+### Voice Output
+
+Streaming messages from ChatGPT are fed to the streaming voice generation API from ElevenLabs and then streamed to an audio output. The ElevenLabs API isn't particularly cheap, so you may not want to overuse it.
+
+### Text Output
+
+Basically just the normal text output you're used to seeing from the ChatGPT UI, but in your terminal. You can still use voice input with this mode, though.
+
+### Commands
+
+| Command                      | Effect                                                                                                                                                                       |
+|------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| talk to \<chat character name> | If there is no existing conversation with the specified character, a new one is started. If there is, it is resumed from where you left off when you switched to a different conversation. |
+| undo                         | Removes the last pair of chatbot and user messages                                                                                                                           |
+| clear                        | Resets the conversation to the chat character's initial context                                                                                                              |
+| exit                         | Exits the program and cleans up background threads. This is preferred over `ctrl+C` for this reason.                                                                          |
+| image: \<url to image> [rest of your message]  | This is only applicable in text input mode. This allows you to pass an image to the chat agent as part of your conversation.
+
+### Chat Characters
+
+When you begin a chat session, you by default are speaking to a generic AI assistant. You may use the `talk to` command to have a conversation with a particular character. The application will look for an ElevenLabs voice and a character context matching that name. If the voice is not found, the default voice will be used. If the character context is not found, the default context is used.
+
+Your message history with each character is saved with that particular character, so when you switch away and back to a conversation, you pick up where you left off. Currently, all message histories are lost when you close the application.
+
+To add a new character context, create a file called `<character_name>_context.txt` in the `contexts` directory.
+
+### ChatGPT Models
+
+Unless you need a more advanced model, it's suggested to keep the `chat_model` in `config.yaml` set to `gpt-3.5-turbo` unless otherwise needed as calls to this model are 20x cheaper than `gpt-4-turbo-preview` and 40x cheaper than `gpt-4`. See more here: https://openai.com/pricing
