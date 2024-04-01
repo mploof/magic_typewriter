@@ -12,4 +12,3 @@ sudo apt install -y mpv
 yq eval ".mpv_path = \"$(which mpv)\"" -i config.yaml
 
 echo "Setup complete. Run 'source .venv/bin/activate' to activate the virtual environment."
-
