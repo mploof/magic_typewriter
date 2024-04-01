@@ -60,6 +60,10 @@ Using the voice mode input, the user gives dictation, which is then transcribed 
 
 ## Installation
 
+### All platforms
+
+Create a directory called `keys` in the project root, then place your ChatGPT and ElevenLabs API key files there. Make sure you've updated `config.yaml` to point to your key files.
+
 ### Linux
 
 ```
