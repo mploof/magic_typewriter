@@ -15,7 +15,8 @@ voices = {
     "tiffany": "x9leqCOAXOcmC5jtkq65",
     "ilya": "CnV6BQOHeZCIv4McSXDH",
     "cheryl": "wVZ5qbJFYF3snuC65nb4",
-    "jennifer": "7NEwj4nuis0eiAI9AhKF"
+    "jennifer": "7NEwj4nuis0eiAI9AhKF",
+    "elizabeth": "LGGSADQ2UFf7xNvljNZp"
 }
 
 with open("./config.yaml", 'r') as file:
