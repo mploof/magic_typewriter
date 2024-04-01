@@ -61,7 +61,7 @@ class Conversation:
                 with open(f"./{context_dir}/{self.name}_context.txt", "r") as f:
                     self.context = f.read().strip()
             except FileNotFoundError:
-                print(f"Context file for {self.name} not found.")
+                print(f"Context file for {self.name} not found. Using default context")
                 self.context = default_context + " Your name is " + self.name + "."
         return self.context
     
@@ -97,18 +97,21 @@ async def text_chunker(chunks):
         # Strip any leading space to avoid unwanted spaces before punctuation
         starts_with_space = text.startswith(' ')
         text = text.lstrip()
-        if text.startswith(' " '):
-            text = ' "' + text[3:]
-        if buffer.endswith(' "') and text[0].isalpha():
-            buffer += text
-        elif buffer == '' or buffer == ' ' or (not starts_with_space and buffer[-1].isalpha() and text[0].isalpha()):
-            buffer += text
-        elif buffer and not buffer.endswith(' ') and (not text.startswith((' ', "'", '"', ',', '.', '?', '!', ';', ':', '—', '-', '(', ')', '[', ']', '}')) or starts_with_space):
-            # If the sentence does not end with a space and the element does not start with a punctuation or space,
-            # add a space before the element
-            buffer += ' ' + text
-        else:
-            # Otherwise, append the element directly to the sentence
+        try:
+            if text.startswith(' " '):
+                text = ' "' + text[3:]
+            if buffer.endswith(' "') and text[0].isalpha():
+                buffer += text
+            elif buffer and (buffer == '' or buffer == ' ' or (not starts_with_space and buffer[-1].isalpha() and text[0].isalpha())):
+                buffer += text
+            elif buffer and not buffer.endswith(' ') and (not text.startswith((' ', "'", '"', ',', '.', '?', '!', ';', ':', '—', '-', '(', ')', '[', ']', '}')) or starts_with_space):
+                # If the sentence does not end with a space and the element does not start with a punctuation or space,
+                # add a space before the element
+                buffer += ' ' + text
+            else:
+                # Otherwise, append the element directly to the sentence
+                buffer += text
+        except IndexError:
             buffer += text
         
         if buffer.endswith(('.', '?', '!', ';', ':', '—', '-', '(', ')', '[', ']', '}', " ")):
