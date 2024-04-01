@@ -175,8 +175,8 @@ def transcript_parser_task(transcript_queue, prompt_queue, terminate_flag):
         terminate_flag (_type_): Flag to signal the termination of the parser thread
     """
     
-    current_wake_word = config["default_wake_word"]
-    override_wake_word = "computer"
+    current_wake_word = config["override_wake_word"]
+    override_wake_word = config["override_wake_word"]
     
     # This is a task that runs in a loop within a separate thread
     while True:
@@ -279,7 +279,7 @@ async def handle_input(user_query:str):
     elif user_query == "undo":
         current_conversation.undo()
         return
-    elif user_query.startswith("IMAGE: "):
+    elif user_query.startswith("image: "):
         image_path = user_query.split(" ")[1]
         content = [
             {"type": "text", "text": " ".join(str(item) for item in user_query.split(" ")[2:])},
