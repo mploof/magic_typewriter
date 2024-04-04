@@ -58,6 +58,28 @@ By incorporating the types of distractions we encounter on a daily basis into th
 
 Using the voice mode input, the user gives dictation, which is then transcribed by the typewriter. The AI assistant will sometimes give spoken feedback on the substance or style of the dictation, and occasionally modify the input to its liking before typing the result.
 
+## Project Architecture
+
+### Typewriter Compute Module
+
+Depending on the specific project application, the typewriter module may be either a single board computer or microcontroller. In the case of projects that require significant local computing power--e.g. capturing photos, performing local voice-to-text capture, etc.--a single board computer (SBC) running a streamlined Linux distribution is the preferred solution. For projects with more basic I/O requirements--e.g. passing messages to and from a GPT chat API--a microcontroller (MCU) such as the ESP-32 is preferred.
+
+This project will pursue both options:
+
+The SBC implementation will use a Raspberry Pi running a custom Linux distribution built with Yocto to streamline the operating system's footprint, and ensure repeatability when distributing the project to other devices.
+
+The MCU implementation will use an ESP-32 or Cortex-M series MCU running ESP-IDF or FreeRTOS, respectively.
+
+
+### AI Chat Services
+
+Projects that require interactions with AI chat services will use the ChatGPT API. Specifically, the streaming response from the API will be used to enable real-time response parsing. This will allow the typewriter to begin printing text before the entire response has been received from the API. Additionally, streaming responses may be forwarded to the ElevenLabs speech synthesis API, which also supports streaming speech generation. Again, this allows for speech in response to user input with minimal processing delay.
+
+
+### AOL Instant Typewriter Chat Infrastructure
+
+To handle message passing, I will build a simple serverless chat app using AWS AppSync for managing the API and DynamoDB for managing chat messages, and Cognito for user authentication. By creating my own messaging service for the project, I can easily connect the typewriters and potentially external web-based users without needing to integrate 3rd party applications. Additionally, it will give greater flexibility and allow things like the introduction of message mutations in transit or faning messages out to other targets.
+
 ## Installation
 
 ### All platforms
@@ -141,21 +163,4 @@ To add a new character context, create a file called `<character_name>_context.t
 
 ### ChatGPT Models
 
-Unless you need a more advanced model, it's suggested to keep the `chat_model` in `config.yaml` set to `gpt-3.5-turbo` unless otherwise needed as calls to this model are 20x cheaper than `gpt-4-turbo-preview` and 40x cheaper than `gpt-4`. See more here: https://openai.com/pricing
-
-
-## Project Architecture
-
-### Typewriter Compute Module
-
-Depending on the specific project application, the typewriter module may be either a single board computer or microcontroller. In the case of projects that require significant local computing power--e.g. capturing photos, performing local voice-to-text capture, etc.--a single board computer (SBC) running a streamlined Linux distribution is the preferred solution. For projects with more basic I/O requirements--e.g. passing messages to and from a GPT chat API--a microcontroller (MCU) such as the ESP-32 is preferred.
-
-This project will pursue both options:
-
-The SBC implementation will use a Raspberry Pi running a custom Linux distribution built with Yocto to streamline the operating system's footprint, and ensure repeatability when distributing the project to other devices.
-
-The MCU implementation will use an ESP-32 or Cortex-M series MCU running ESP-IDF or FreeRTOS, respectively.
-
-### AOL Instant Typewriter Chat Service
-
-To handle message passing, I will build a simple serverless chat app using AWS AppSync for managing the API and DynamoDB for managing chat messages, and Cognito for user authentication. By creating my own messaging service for the project, I can easily connect the typewriters and potentially external web-based users without needing to integrate 3rd party applications. Additionally, it will give me greater flexibility and allow me to do things like introduce message mutations in transit or fan messages out to other targets.
+Unless you need a more advanced model, it's suggested to keep the `chat_model` in `config.yaml` set to `gpt-3.5-turbo` as calls to this model are 20x cheaper than `gpt-4-turbo-preview` and 40x cheaper than `gpt-4`. See more here: https://openai.com/pricing
