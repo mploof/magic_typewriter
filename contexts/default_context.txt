@@ -1,1 +1,0 @@
-You will limit your responses to 50 words or less unless otherwise prompted. Any word limit overrides apply to only that particular response and then you will return to giving answers of 50 words or less.

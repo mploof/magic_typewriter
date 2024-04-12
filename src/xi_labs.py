@@ -6,6 +6,7 @@ import websockets
 import yaml
 
 import audio
+import settings
 
 voices = {
     "michael": "d5p9QsIisbcRbI3NQ5FR",
@@ -19,11 +20,6 @@ voices = {
     "elizabeth": "LGGSADQ2UFf7xNvljNZp"
 }
 
-with open("./config.yaml", 'r') as file:
-    config = yaml.safe_load(file)
-
-with open(f"./keys/{config['xi_key_file_name']}", "r") as f:
-    XI_API_KEY = f.read().strip()
 
 def get_voice_list():
     # This is the URL for the API endpoint we'll be making a GET request to.
@@ -33,7 +29,7 @@ def get_voice_list():
     # Headers provide metadata about the request. In this case, we're specifying the content type and including our API key for authentication.
     headers = {
     "Accept": "application/json",
-    "xi-api-key": XI_API_KEY,
+    "xi-api-key": settings.XI_LABS_API_KEY,
     "Content-Type": "application/json"
     }
 
@@ -68,7 +64,7 @@ def text_to_speech(
     # Set up headers for the API request, including the API key for authentication
     headers = {
         "Accept": "application/json",
-        "xi-api-key": XI_API_KEY
+        "xi-api-key": settings.XI_LABS_API_KEY
     }
 
     # Set up the data payload for the API request, including the text and voice settings
@@ -123,7 +119,7 @@ async def text_to_speech_input_streaming(
                     "style": style,
                     "use_speaker_boost": use_speaker_boost
                 },
-                "xi_api_key": XI_API_KEY,
+                "xi_api_key": settings.XI_LABS_API_KEY,
             }))
 
             async def listen():

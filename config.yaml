@@ -16,26 +16,31 @@ use_wake_word: True
 ###### ChatGPT Settings
 gpt_key_file_name: chatgpt_api.key
 # gpt_key_file_name: chatgpt_api.guest.key
-chat_temperature: 1
-max_tokens: 100
+chat_temperature: 0.1
+max_tokens: 1000
 
 # Input: $3 / 100k -- Output: $6 / 100k
 # chat_model: gpt-4
 
 # Input: $1 / 100k -- Output: $3 / 100k
-chat_model: gpt-4-turbo-preview
+# chat_model: gpt-4-turbo-preview
 
 # Input: $1 / 100k -- Output: $3 / 100k
-# chat_model: gpt-4-vision-preview
+chat_model: gpt-4-vision-preview
 
 # Input: $0.05 / 100k -- Output: $0.15 / 100k
 # chat_model: gpt-3.5-turbo
 
 # Options: text / voice
-chat_input_mode: voice
+chat_input_mode: text
 
 # Options: text / voice
-chat_output_mode: voice
+chat_output_mode: text
 
-context_dir: ./contexts
+data_dir: ./data
+context_dir: ./data/contexts
+stories_dir: ./data/stories
+authors_dir: ./data/authors
+images_dir: ./data/images
+local_image_name: img.png
 default_context_file: default_context.txt

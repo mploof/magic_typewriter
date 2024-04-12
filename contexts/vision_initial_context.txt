@@ -1,9 +1,0 @@
-Given an image, you will analyze the image and do the following:
-
-Make a list of sentiment words describing the photo. List them starting with "SENTIMENTS:"
-
-Based on the facial expressions and body language of the subject in the photo, hypothesize their character's motivations in the context of a literary novel. Select a motivation that could generate good material for a plot conflict. State this starting with "MOTIVATION:"
-
-Use that motivation, the sentiment words, and the reference image to generate a backstory, told in bullet points, that has brought the character to this current moment in time. It should include a compelling and unexpected conflict. Start this with "BACKSTORY:"
-
-Write a story fragment that references  the imagery of the photo that incorporates these points and describes the character in the moment of time captured in the photo. Write it in a style inspired by the stories in the files uploaded for your reference. Do not use bullet points. Do not be repetitive. Do not use the following words: silent, portrait, rhythm. Start this with "STORY:"

@@ -3,31 +3,26 @@ import asyncio
 import json
 import threading
 import queue
-import yaml
+import base64
 
 ###### Third-Party Imports ######
 from openai import AsyncOpenAI
 import xi_labs
 from xi_labs import voices
+from PIL import Image
 
 ###### Local Imports ######
 import listener
+from bias import get_bias
+import settings
+from settings import config
+import images
 
 ###### Global Vars ######
-with open("./config.yaml", 'r') as file:
-    config = yaml.safe_load(file)
 
-context_dir = config["context_dir"]
-default_context_file = config["default_context_file"]
-    
-with open(f"./{context_dir}/{default_context_file}", "r") as f:
-    default_context = f.read().strip()
-       
-with open(f"./keys/{config['gpt_key_file_name']}", "r") as f:
-    OPENAI_API_KEY = f.read().strip()
 
 # Set OpenAI API key
-aclient = AsyncOpenAI(api_key=OPENAI_API_KEY)
+aclient = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
 conversations = {}
 current_conversation = None
 wake_word_queue = queue.Queue()
@@ -58,11 +53,11 @@ class Conversation:
     def get_context(self):
         if self.context is None:
             try:
-                with open(f"./{context_dir}/{self.name}_context.txt", "r") as f:
+                with open(f"./{settings.context_dir}/{self.name}_context.txt", "r") as f:
                     self.context = f.read().strip()
             except FileNotFoundError:
                 print(f"Context file for {self.name} not found. Using default context")
-                self.context = default_context + " Your name is " + self.name + "."
+                self.context = settings.default_context + " Your name is " + self.name + "."
         return self.context
     
     def add_message(self, role, content):
@@ -126,7 +121,8 @@ async def chat_completion(
     conversation:Conversation,
     model=config["chat_model"],
     temperature=config["chat_temperature"],
-    max_tokens=config["max_tokens"]
+    max_tokens=config["max_tokens"],
+    logit_bias={}
 ):
     """Send a chat completion request to the OpenAI API and stream the returned text.
     The returned stream is handled depending on the output mode set in the config file.
@@ -141,13 +137,13 @@ async def chat_completion(
     Yields:
         _type_: _description_
     """
-        
     response = await aclient.chat.completions.create(
         model=model,
         messages=conversation.get_messages(),
         temperature=temperature,
         stream=True,
         max_tokens=max_tokens,
+        logit_bias=logit_bias
     )
     
     async def text_iterator():
@@ -165,9 +161,12 @@ async def chat_completion(
     if config["chat_output_mode"] == "voice":
         await xi_labs.text_to_speech_input_streaming(text_iterator(), text_chunker, conversation.voice_id)
     else:
+        last_output = ""
         async for chunk in text_chunker(text_iterator()):
             print(chunk, end="", sep="", flush=True)
+            last_output += chunk
         print("\n")
+        return last_output
 
 
 def transcript_parser_task(transcript_queue, prompt_queue, terminate_flag):
@@ -274,6 +273,11 @@ async def handle_voice_in():
 async def handle_input(user_query:str):
     
     global current_conversation
+    chat_temperature = config["chat_temperature"]
+    
+    if user_query.startswith("temp: "):
+        chat_temperature = float(user_query.split(" ")[1])
+        user_query = " ".join(str(item) for item in user_query.split(" ")[2:])
     
     if user_query.startswith("talk to "):
         character_name = user_query.split(" ")[2]
@@ -287,17 +291,24 @@ async def handle_input(user_query:str):
     elif user_query == "undo":
         current_conversation.undo()
         return
-    elif user_query.startswith("image: "):
-        image_path = user_query.split(" ")[1]
+    elif user_query.startswith("image"):
+        if user_query.startswith("image_local"):
+            url = images.get_base64_image_url(config["local_image_name"])
+        elif user_query.startswith("image_url: "):
+            url = user_query.split(" ")[1]
+        else:
+            print("Invalid image command. Please use 'image: ' or 'image_url: '")
+            return
         content = [
             {"type": "text", "text": " ".join(str(item) for item in user_query.split(" ")[2:])},
-            {"type": "image_url", "image_url": {"url": image_path}}
+            {"type": "image_url", "image_url": {"url": url}}
         ]
     else:
         content = user_query
 
     current_conversation.add_message('user', content)  # Append the user's message to the history
-    await chat_completion(current_conversation)  # Await the chat completion and text-to-speech for the user's query
+    
+    await chat_completion(current_conversation, temperature=chat_temperature, logit_bias=get_bias())  # Await the chat completion and text-to-speech for the user's query
 
 
 def switch_conversation(conversation_name):
