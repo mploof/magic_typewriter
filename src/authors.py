@@ -17,6 +17,7 @@ class Author:
         self.vocab = []
         self.themes = []
         self.devices = []
+        self.writing_sample = None
 
         self.author_file_path = os.path.join(config["authors_dir"], f"{self.name}.json")
         self.load_author_file()        
@@ -33,6 +34,7 @@ class Author:
         self.get_complexity()
         self.get_poeticism()
         self.get_vocab(150)
+        self.get_writing_sample()
         
     def get_vocab(self, vocab_size=150):
         '''Prompt ChatGPT to return a list of vocabulary specific to the author'''
@@ -51,7 +53,7 @@ class Author:
                 current_vocab = " ".join(self.vocab)
                 prompt += f" The current list of words for {self.name} has already been recorded: {current_vocab}. Do not repeat these words or any varients of them."
             
-            response = gpt.get_synchonous_response(prompt, temperature=0.05, model="gpt-4-turbo")
+            response = gpt.get_synchronous_response(prompt, temperature=0.05, model="gpt-4-turbo")
             vocab = response.replace(".", "").replace(",", "").replace("\n", " ").strip().split(" ")
             for word in vocab:
                 if word.lower() not in self.vocab:
@@ -63,7 +65,7 @@ class Author:
             if len(self.vocab) < vocab_size:
                 update_vocab()
         
-        if len(self.vocab) < vocab_size:
+        if len(self.vocab) < vocab_size - 10:
             update_vocab()
             print("Vocab size:", len(self.vocab))
             print("Vocab:", self.vocab)
@@ -75,9 +77,9 @@ class Author:
         
         if self.themes is None or len(self.themes) == 0:
             print(f"Generating themes for {self.name}.")
-            prompt = f"Generate a space separated list of recurring themes that {self.name} is known for writing about. This will be processed directly by a script, so output nothing but the list."
-            response = gpt.get_synchonous_response(prompt)
-            themes = response.split(" ")
+            prompt = f"Generate a comma separated list of recurring themes that {self.name} is known for writing about. This will be processed directly by a script, so output nothing but the list."
+            response = gpt.get_synchronous_response(prompt)
+            themes = response.split(",")
             for theme in themes:
                 self.themes.append(theme.lower())
             self.save_author_file()
@@ -88,9 +90,9 @@ class Author:
         
         if self.devices is None or len(self.devices) == 0:
             print(f"Generating literary devices for {self.name}.")
-            prompt = f"Generate a space separated list of literary devices that {self.name} is known for using in their writing. This will be processed directly by a script, so output nothing but the list."
-            response = gpt.get_synchonous_response(prompt)
-            devices = response.split(" ")
+            prompt = f"Generate a comma separated list of literary devices that {self.name} is known for using in their writing. This will be processed directly by a script, so output nothing but the list."
+            response = gpt.get_synchronous_response(prompt)
+            devices = response.split(",")
             for device in devices:
                 self.devices.append(device.lower())
             self.save_author_file()
@@ -101,7 +103,7 @@ class Author:
         if self.genre is None:
             print(f"Generating genre for {self.name}.")
             prompt = f"Output the genre {self.name} is most known for writing in. This will be processed directly by a script, so output nothing but the description."
-            response = gpt.get_synchonous_response(prompt)
+            response = gpt.get_synchronous_response(prompt)
             self.genre = response.lower()
             self.save_author_file()
             print("Genre:", self.genre)
@@ -110,7 +112,7 @@ class Author:
         if self.complexity == 0:
             print(f"Generating complexity rating for {self.name}.")
             prompt = f"Output a complexity rating for {self.name}'s writing style on a scale of 1-10. This will be processed directly by a script, so output nothing but the number."
-            response = gpt.get_synchonous_response(prompt)
+            response = gpt.get_synchronous_response(prompt)
             self.complexity = int(response)
             self.save_author_file()
             print("Complexity:", self.complexity)
@@ -119,11 +121,22 @@ class Author:
     def get_poeticism(self):
         if self.poeticism == 0:
             prompt = f"Output a poeticism rating for {self.name}'s writing style on a scale of 1-10. This will be processed directly by a script, so output nothing but the number."
-            response = gpt.get_synchonous_response(prompt)
+            response = gpt.get_synchronous_response(prompt)
             self.poeticism = int(response)
             self.save_author_file()
             print("Poeticism:", self.poeticism)
         return self.poeticism
+    
+    def get_writing_sample(self):
+        if self.writing_sample is None:
+            with open(os.path.join(config["authors_dir"], "writing_seed.txt"), "r") as file:
+                seed_text = file.read()
+            prompt = f"Re-write text this in the style of {self.name}. This will be processed directly by a script, so output nothing but the re-written text. \n\n {seed_text} "
+            response = gpt.get_synchronous_response(prompt)
+            self.writing_sample = response
+            self.save_author_file()
+            print("Writing sample:", self.writing_sample)
+        return self.writing_sample  
         
     def save_author_file(self):
 

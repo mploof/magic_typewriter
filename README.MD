@@ -62,13 +62,23 @@ Using the voice mode input, the user gives dictation, which is then transcribed 
 
 ### Typewriter Compute Module
 
-Depending on the specific project application, the typewriter module may be either a single board computer or microcontroller. In the case of projects that require significant local computing power--e.g. capturing photos, performing local voice-to-text capture, etc.--a single board computer (SBC) running a streamlined Linux distribution is the preferred solution. For projects with more basic I/O requirements--e.g. passing messages to and from a GPT chat API--a microcontroller (MCU) such as the ESP-32 is preferred.
+Depending on the specific project application, the typewriter module may be either a single board computer or microcontroller. In the case of projects that require significant local computing power--e.g. capturing photos, performing local voice-to-text capture, etc.--a single board computer (SBC) running a streamlined Linux distribution is the preferred solution. For projects with more basic I/O requirements--e.g. passing messages to and from a GPT chat API--a microcontroller (MCU) such as the ESP-32 is preferred. This project will pursue both options.
 
-This project will pursue both options:
+#### MCU Implementation
+
+The MCU implementation will use an ESP-32 or Cortex-M series MCU running ESP-IDF or FreeRTOS, respectively. By running an RTOS on the MCU, smooth user interaction can be ensured. Tasks include:
+
+- Typewriter motion control, including platen roller position and hammer actuation
+- Typewriter keyboard input detection
+- Sending AI chat requests and handling streaming chat responses
+
+By splitting these into preempting tasks 
+
+#### SBC Implementation
 
 The SBC implementation will use a Raspberry Pi running a custom Linux distribution built with Yocto to streamline the operating system's footprint, and ensure repeatability when distributing the project to other devices.
 
-The MCU implementation will use an ESP-32 or Cortex-M series MCU running ESP-IDF or FreeRTOS, respectively.
+
 
 
 ### AI Chat Services

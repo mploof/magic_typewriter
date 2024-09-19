@@ -22,3 +22,10 @@ def get_base64_image_url(image_name):
         base64_image =  base64.b64encode(image_file.read()).decode('utf-8')
         url = f"data:image/jpeg;base64,{base64_image}"
         return url
+
+def get_base64_image(image_name):
+    image_path = os.path.join(config["images_dir"], image_name)
+    resize_image(image_path, image_path, 1024)
+    with open(image_path, "rb") as image_file:
+        base64_image =  base64.b64encode(image_file.read()).decode('utf-8')
+        return base64_image

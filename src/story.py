@@ -2,10 +2,12 @@ import json
 import os
 import random
 from enum import IntEnum
+import time
 
 import gpt_synchonous as gpt
 from authors import Author
 from settings import config
+import settings
 import bias
 import images
     
@@ -23,13 +25,13 @@ class StoryPoint(IntEnum):
     FINAL_REFINEMENT = 10
 
 class Temperatures:
-    IMAGE_NOTES = 0.8
-    MOTIVATIONS = 1.2
-    SME = 1.0
-    INTRO_IDEA = 1.3
-    STORY = 1.1
-    FIRST_REFINEMENT = 1.0
-    SECOND_REFINEMENT = 0.5
+    IMAGE_NOTES = 0.05
+    MOTIVATIONS = 0.2
+    SME = 0.1
+    INTRO_IDEA = 0.1
+    STORY = 0.1
+    FIRST_REFINEMENT = 0.1
+    SECOND_REFINEMENT = 0.1
     FINAL_REFINEMENT = 0.05
     
 
@@ -40,7 +42,7 @@ class Story:
     def create_empty_story(cls, story_name):
         Story(story_name, None, None, no_load=True)
 
-    def __init__(self, story_name, author_name, image_name=None, image_url=None, image_notes=None, no_load=False):
+    def __init__(self, story_name, author_name, image_name=None, image_url=None, image_notes=None, no_load=False, no_save=False):
         self.image_name = image_name
         self.image_url = image_url
         self.story_name = story_name
@@ -56,9 +58,8 @@ class Story:
         self.second_refinement = None
         self.final_refinement = None
         self.image_notes = image_notes
-        self.messages = [
-                {"role": "system", "content": f"You are a chatbot that assists with the writing of stories in the style of {self.author_name}. You have vision processing capabilities and can also process images. Your output will be processed programmatically, so please follow the instructions carefully and do not add additional commentary to your responses."}
-        ]
+        self.messages = []
+        self.no_save = no_save
         
         self.story_path = os.path.join(config["stories_dir"], f"{self.story_name}.json")
         
@@ -68,28 +69,46 @@ class Story:
             # This attribute is not saved to the JSON file, so it needs to be reinitialized
             self.author = Author(author_name)
         
-    def get_image_notes(self):
+    def get_image_notes(self, notes=None):
         if self.image_notes is None:
-            print(f"Generating image notes for {self.story_name}.")
-            prompt = f"Analyze the attached image and list as bullet points the following information about the subject: gender, age (guess a specific age), clothing details, body language, ethnic origin, facial expression, facial details (including, among other details, eye color and facial feature shape), hairstyle."
-            content = [{"type": "text", "text": prompt}]
-            
-            if self.image_name is not None:
-                image_url = images.get_base64_image_url(self.image_name)
-                content.append({"type": "image_url", "image_url": {"url": image_url}})
-            elif self.image_url is not None:
-                content.append({"type": "image_url", "image_url": {"url": self.image_url}})
-            else:
-                print("An image name or URL must be provided to generate image notes.")
-                exit()
+            if notes is not None:
+                self.image_notes = notes
+            else:   
+                print(f"Generating image notes for {self.story_name}.")
+                # prompt = f"The image is a portrait of myself. Write two paragraphs describing the me in the style of {self.author_name}. This description describes more the internal thoughts and emotions indicated by my physical characteristics than the physical characteristics themselves, but also mentioning my age in the description. I give you permission to speculate on my interior thoughts and state of mind. I will not be offended by anything you say. Next, take the those two paragraphs and rewrite them in a manner that adheres more strongly to the style of {self.author_name} without quoting directly. Start the rewritten section with the heading 'REWRITTEN:'."
                 
-            self.messages.append({"role": "user", "content": content})
-            response = gpt.get_synchonous_response(messages=self.messages, temperature=Temperatures.IMAGE_NOTES)
-            self.image_notes = response
-            
+                prompt = f"The image is a portrait of myself. Write two paragraphs describing the me." 
+                content = [{"type": "text", "text": prompt}]
+                
+                if settings.ai == "anthropic":
+                    if self.image_name is not None:
+                        response = gpt.get_claude_synchonous_response(prompt, image_name=self.image_name)
+                        prompt = f"Rewrite this description in the style of {self.author_name}. {response}"
+                        response = gpt.get_claude_synchonous_response(prompt)
+                        self.image_notes = response
+
+                    else:
+                        print("An image name must be provided to generate image notes.")
+                        exit()
+                else:
+                    if self.image_name is not None:
+                        image_url = images.get_base64_image_url(self.image_name)
+                        content.append({"type": "image_url", "image_url": {"url": image_url}})
+                    elif self.image_url is not None:
+                        content.append({"type": "image_url", "image_url": {"url": self.image_url}})
+                    else:
+                        print("An image name or URL must be provided to generate image notes.")
+                        exit()
+                    
+                    self.messages.append({"role": "user", "content": content})
+                    response = gpt.get_synchronous_response(model="gpt-4-vision-preview", messages=self.messages, temperature=Temperatures.IMAGE_NOTES)
+                    
+                    self.image_notes = response
+                    self.messages.pop()
             self.messages.append({"role": "assistant", "content": f"Image notes: {self.image_notes}"})
             
         self.save()
+        print(self.image_notes)
         return self.image_notes
     
     def fetch_story_arcs(self):
@@ -133,7 +152,7 @@ class Story:
             if self.story_themes == []:
                 self.story_themes = random.sample(self.author.themes, 2)
             
-            prompt = f"Given the character motivations and story arc I also gave told you, write a brief outline of a story that includes a captivating start, a compelling middle, and a complex ending. The outline should be descriptive and matter of fact. It should not be flowery, as it is simply describing what will happen in the story. The story should be inspired by the themes of {', '.join(self.story_themes)}. List the start, middle, and end as separate bullet points. Although the story is short, there should be a clear three act structure that follows the story arc. I gave you."
+            prompt = f"Given the character motivations and story arc I also gave told you, write a brief outline of a story that includes a captivating start, a compelling middle, and a complex ending. The outline should be descriptive and matter of fact. It should not be flowery, as it is simply describing what will happen in the story. The story should be inspired by the themes of {', '.join(self.story_themes)}. List the start, middle, and end as separate bullet points. The start middle and end should have exactly two sub-points. Although the story is short, there should be a clear plot that follows the story arc I gave you."
             
             self.messages.append({"role": "user", "content": prompt})
           
@@ -151,8 +170,8 @@ class Story:
             
         if self.intro_idea is None:
             print(f"Generating introduction ideas for {self.story_name}.")
-            literary_devices = ", ".join(random.sample(self.author.devices, 2))
-            prompt = f"Given the story outline and character motivations from earlier, generate a unique and captivating rhetorical idea for the introduction of the story, inspired by the following literary devices: {literary_devices}. The idea should be thought-provoking, engaging, and set the stage for a compelling narrative that follows the given plot arc. The idea should be fresh and original. Character motivations: {self.get_character_motivations()}. Plot outline: {self.s_m_e}. Some examples of interesting rhetorical ideas include: {random.shuffle(rhethorical_devices)}"
+            literary_devices = random.sample(self.author.devices, 1)[0]
+            prompt = f"Given the story outline and character motivations from earlier, generate a unique and captivating idea for the introduction of the story based around this rhetorical device include: {random.shuffle(rhethorical_devices)}. Describe how you would use it to introduce the story. This is not the introduction itself, just merely of how the device will be used. It should be a matter of fact description that will be referenced later. Do not reference the rhetorical device in the introduction idea."
 
             self.messages.append({"role": "user", "content": prompt})
 
@@ -166,7 +185,7 @@ class Story:
         if self.story is None:
             print(f"Generating story for {self.story_name}.")
             this_vocab = ', '.join(random.sample(self.author.get_vocab(), 50))
-            prompt = f"You now know the character description, motivations, story themes, story arc, story outline, and have an idea for an interesting way to begin the story. Using that information from earlier, write the a 500 word story that follows those guidelines. Be sure to ues the story outline and introduction idea, but do not repeat them verbatim. Make sure that each paragraph in the story moves the action forward. Avoid use of the passive voice. Focus more on actions of the main character than descriptions of main character. Incorporate at at least one, but no more than two oblique references to the character's physical appears as described in the image notes. To further refine the story, incorporate some of the following vocabulary words for extra flair: {this_vocab}. These are complex words that should be used sparingly to enhance the story, not detract from it."
+            prompt = f"You now know the character description, motivations, story themes, story arc, story outline, and have an idea for an interesting way to begin the story. Use the description of the opening (Introduction Idea) to write the first two paragraphs of the story. The introduction idea will likely refer to a specific rhetorical tool. Be sure to implement in your writing it as it is described. Avoid use of the passive voice. Incorporate exactly two oblique references to the character's physical appears as described in the image notes. To further refine the story, incorporate some of the following vocabulary words for extra flair: {this_vocab}. These are complex words that should be used sparingly to enhance the story, not detract from it."
             
             self.messages.append({"role": "user", "content": prompt})
             
@@ -180,9 +199,10 @@ class Story:
         if self.first_refinement is None:
             print(f"Generating first refinement for {self.story_name}.")
             this_vocab = ', '.join(random.sample(self.author.get_vocab(), 50))
-            prompt = f"You will now edit the first draft of the story. Take on the roll of an editor at The New Yorker, ensuring that the story meets the highest standards for excellents in literature. Streamline the writing, cut excessive adjectives, reword awkward turns of phrase. There is no need to maintain the existing structure if you think you can restructuring and rewriting it will improve the quality and better align with {self.author.name}'s style, vocabulary, and sentence structure, so long as you maintain the character's motivations, plot arc, and story outline. Some vocabulary words to consider incorporating are: {this_vocab}. Do not use the vocabulary words excessively, but do use them when they will enhance the story. Do not remove them where they already exist. Do not reference these instructions in the story."
+            prompt = f"You will now edit the first draft the text of the story so far. Do not expand the story, even if it is not complete, merely edit it. Take on the roll of an editor at The New Yorker, ensuring that the story meets the highest standards for excellents in literature. Streamline the writing, cut excessive adjectives, reword awkward turns of phrase. Some vocabulary words to consider incorporating are: {this_vocab}. Do not use the vocabulary words excessively, but do use them when they will enhance the story. Do not remove them where they already exist. Do not reference these instructions in the story."
 
             self.messages.append({"role": "user", "content": prompt}),
+            print(self.messages)
                                  
             response = gpt.get_synchonous_response(messages=self.messages, temperature=Temperatures.FIRST_REFINEMENT, logit_bias=bias.get_bias())
             self.first_refinement = response
@@ -193,7 +213,7 @@ class Story:
     def get_second_refinement(self):
         if self.second_refinement is None:
             print(f"Generating second refinement for {self.story_name}.")
-            prompt = f"This is your second edit of the story draft. In this revision, focus on removing redundancy and cliches, and condense or rephrase repetitive sections. Do not reference these instructions in the story."
+            prompt = f"This is your second edit of the writing. In this revision, focus on removing redundancy and cliches, and condense or rephrase repetitive sections. Do not expand the narrative beyond what is provided. Do not reference these instructions in the story."
             
             self.messages.append({"role": "user", "content": prompt})
             
@@ -206,7 +226,7 @@ class Story:
     def get_final_refinement(self):
         if self.final_refinement is None:
             print(f"Generating final refinement for {self.story_name}.")
-            prompt = f"This is your final opportunity to enhance this story, which is already written in the style of {self.author_name}. Maintain the style, but go over it with a fine toothed comb one more time to find any hints that indicate the story might have been written by an AI and rephrase them to sound more human and less cliche. Reword any repetative word usages. Look for instances of the following cliched words and phrases and reword them in a way that is more in line with how {self.author_name} would say it: {', '.join(bias.banned_words)}. Do not reference these instructions in the story. "
+            prompt = f"This is your final opportunity to enhance this story, which is already written in the style of {self.author_name}.Eliminate any repetative word usages. Look for instances of the following cliched words and phrases and reword them in a way that is more in line with how {self.author_name} would say it: {', '.join(bias.banned_words)}. Do not expand the narrative beyond what is provided already. Do not reference these instructions in the story."
    
             self.messages.append({"role": "user", "content": prompt})
             
@@ -219,6 +239,8 @@ class Story:
         return self.final_refinement
             
     def save(self):
+        if self.no_save:
+            return
         # Create a copy of the object's dictionary
         data_to_save = self.__dict__.copy()
         
@@ -279,14 +301,19 @@ class Story:
         
     
 if __name__ == "__main__":
-            
-    story = Story("Michael Story New", "D.H. Lawrence", image_name="michael.jpg")
-    story.reset_to(StoryPoint.CLEAR)
+    
+    notes = "- Gender: Male\n- Age: Approximately 30 years old\n- Clothing details: Wearing a patterned short-sleeved shirt with a collar, predominantly light in color with a plaid design and floral accents\n- Body language: Leaning slightly forward, focused on the camera he is holding, giving a sense of concentration\n- Ethnic origin: Appears to be of Middle Eastern or Mediterranean descent\n- Facial expression: Concentrated, slightly furrowed brow, mouth closed\n- Facial details: Dark, thick eyebrows; dark eyes; prominent nose; full beard and mustache; no visible tattoos or piercings\n- Hairstyle: Curly, dark hair; medium length; appears somewhat disheveled",
+    
+    start_time = time.time()
+    story = Story("WS35", "Robert Heinlein", image_name="1.png", no_save=True)
+    # story.reset_to(StoryPoint.IMAGE_NOTES)
     story.get_image_notes()
-    story.get_character_motivations()
-    story.get_start_middle_end()
-    story.get_intro_idea()
-    story.get_story()
-    story.get_first_refinement()
-    story.get_second_refinement()
-    story.get_final_refinement()
+    # story.get_character_motivations()
+    # story.get_start_middle_end()
+    # story.get_intro_idea()
+    # story.get_story()
+    # story.get_first_refinement()
+    # story.get_second_refinement()
+    # story.get_final_refinement()
+    end_time = time.time()
+    print(f"Runtime: {end_time - start_time} seconds.")

@@ -4,19 +4,22 @@ import json
 import threading
 import queue
 import base64
+from time import time
 
 ###### Third-Party Imports ######
 from openai import AsyncOpenAI
 import xi_labs
 from xi_labs import voices
 from PIL import Image
+from loguru import logger
 
 ###### Local Imports ######
 import listener
 from bias import get_bias
 import settings
-from settings import config
+from settings import get_config
 import images
+import audio
 
 ###### Global Vars ######
 
@@ -44,7 +47,7 @@ class Conversation:
             self.voice_id = voice_id
             if voice_id not in voices.values():
                 print("Voice ID not found. Using default voice ID.")
-                self.voice_id = config["default_voice"]
+                self.voice_id = voices[get_config()["default_voice"]]
         
         self.context = initial_context
         self.messages = []
@@ -61,15 +64,35 @@ class Conversation:
         return self.context
     
     def add_message(self, role, content):
+        self.get_messages()
         self.messages.append({'role': role, 'content': content})
+        # Save the messages to a JSON file
+        with open(f"./{settings.context_dir}/{self.name}_messages.json", "w") as f:
+            # pretty print the JSON to file
+            json.dump(self.messages, f, indent=4)
         
     def get_messages(self):
+        # Read the messages from file
+        try:
+            with open(f"./{settings.context_dir}/{self.name}_messages.json", "r") as f:
+                self.messages = json.load(f)
+        except FileNotFoundError:
+            pass
         return self.messages
+    
+    def save_conversation(self, file_name):
+        with open(f"./{settings.context_dir}/{file_name}", "w") as f:
+            json.dump(self.messages, f, indent=4)
+            
+    def load_conversation(self, file_name):
+        with open(f"./{settings.context_dir}/{file_name}", "r") as f:
+            self.messages = json.load(f)
     
     def clear_conversation(self):
         print(f"Resetting conversation with {self.name}...")
         self.messages = []
         self.messages.append({'role': 'user', 'content': self.get_context()})
+        self.save_conversation(f"{self.name}_messages.json")
     
     def undo(self):
         print("Undoing last message...")
@@ -119,9 +142,9 @@ async def text_chunker(chunks):
 
 async def chat_completion(
     conversation:Conversation,
-    model=config["chat_model"],
-    temperature=config["chat_temperature"],
-    max_tokens=config["max_tokens"],
+    model=get_config()["chat_model"],
+    temperature=get_config()["chat_temperature"],
+    max_tokens=get_config()["max_tokens"],
     logit_bias={}
 ):
     """Send a chat completion request to the OpenAI API and stream the returned text.
@@ -158,8 +181,26 @@ async def chat_completion(
                 continue
         conversation.add_message('assistant', this_message) # Update conversation history
 
-    if config["chat_output_mode"] == "voice":
-        await xi_labs.text_to_speech_input_streaming(text_iterator(), text_chunker, conversation.voice_id)
+    if get_config()["chat_output_mode"] == "voice":
+        if get_config()["stream_output"]:
+            await xi_labs.text_stream_to_speech_stream(
+                text_iterator(), 
+                text_chunker,
+                conversation.voice_id,
+                break_phrases=["TRANSCRIPT:"]
+            )
+        else:
+            last_output = ""
+            async for chunk in text_chunker(text_iterator()):
+                last_output += chunk
+            print(last_output)
+            xi_labs.text_to_speech(
+                last_output,
+                conversation.voice_id,
+            )
+            # Play output.mp3
+            await audio.play_file("output.mp3")
+            
     else:
         last_output = ""
         async for chunk in text_chunker(text_iterator()):
@@ -168,7 +209,8 @@ async def chat_completion(
         print("\n")
         return last_output
 
-
+last_word_time = 0
+holding_prompt = ""
 def transcript_parser_task(transcript_queue, prompt_queue, terminate_flag):
     """Parses the real-time voice input transcript to identify the wake word,
     and extracts the prompt to be sent to the chatbot. This function is meant
@@ -180,8 +222,11 @@ def transcript_parser_task(transcript_queue, prompt_queue, terminate_flag):
         terminate_flag (_type_): Flag to signal the termination of the parser thread
     """
     
-    current_wake_word = config["override_wake_word"]
-    override_wake_word = config["override_wake_word"]
+    global holding_prompt
+    global last_word_time
+    
+    current_wake_word = get_config()["override_wake_word"]
+    override_wake_word = get_config()["override_wake_word"]
     
     # This is a task that runs in a loop within a separate thread
     while True:
@@ -197,26 +242,39 @@ def transcript_parser_task(transcript_queue, prompt_queue, terminate_flag):
         if status == "final":
             # Print the finalized voice input for debugging purposes
             print("F:", transcript['text'])
+            last_word_time = time()
             
             # Check for the presence of the wake word in the transcript, and if found, extract the prompt
-            if config["use_wake_word"]:
+            if get_config()["use_wake_word"]:
                 if current_wake_word in transcript['text'].lower():
                     prompt = transcript['text'][transcript['text'].lower().index(current_wake_word) + len(current_wake_word):].strip()
                     print("Text after wake word:", prompt)
+                    # holding_prompt += prompt
                     prompt_queue.put(prompt)
                 elif override_wake_word is not None and override_wake_word in transcript['text'].lower():
                     prompt = transcript['text'][transcript['text'].lower().index(override_wake_word) + len(override_wake_word):].strip()
                     print("Text after override wake word:", prompt)
+                    # holding_prompt += prompt
                     prompt_queue.put(prompt)
             elif transcript['text'] is not None and transcript['text'].strip() != "":
-                prompt_queue.put(transcript['text'])
-                
+                print("No wake word detected, adding to holding prompt.")
+                holding_prompt += transcript['text']                
         elif status == "partial":
             # Print the partial transcript for debugging purposes
             print("P:", transcript['partial'], end="\r")
+            if transcript['partial'] is not None and transcript['partial'].strip() != "":                
+                last_word_time = time()
+            
+        
+        
+        # print(f"Time since last word: {time() - last_word_time}")
+        if time() - last_word_time > settings.config["silence_timeout"] and holding_prompt != "":
+            print("Silence detected. Sending prompt to chatbot.")
+            prompt_queue.put(holding_prompt)
+            holding_prompt = ""
+            
         if terminate_flag.is_set():
             break
-
 
 async def handle_text_in():
     
@@ -273,7 +331,7 @@ async def handle_voice_in():
 async def handle_input(user_query:str):
     
     global current_conversation
-    chat_temperature = config["chat_temperature"]
+    chat_temperature = get_config()["chat_temperature"]
     
     if user_query.startswith("temp: "):
         chat_temperature = float(user_query.split(" ")[1])
@@ -288,12 +346,22 @@ async def handle_input(user_query:str):
     elif user_query == "clear":
         current_conversation.clear_conversation()
         return
+    elif user_query == "load":
+        load_name = input("Enter the name of the conversation to load: ")
+        current_conversation.load_conversation(f"{load_name}.json")
+        return
+    elif user_query == "save":
+        save_name = input("Enter a name for the conversation: ")
+        current_conversation.save_conversation(f"{save_name}.json")
+        return
     elif user_query == "undo":
         current_conversation.undo()
         return
     elif user_query.startswith("image"):
         if user_query.startswith("image_local"):
-            url = images.get_base64_image_url(config["local_image_name"])
+            url = images.get_base64_image_url(get_config()["local_image_name"])
+        elif user_query.startswith("image: "):
+            url = images.get_base64_image_url(user_query.split(" ")[1])
         elif user_query.startswith("image_url: "):
             url = user_query.split(" ")[1]
         else:
@@ -329,7 +397,7 @@ def switch_conversation(conversation_name):
 async def main():
     
     global current_conversation
-    mode = config["chat_input_mode"]
+    mode = get_config()["chat_input_mode"]
     current_conversation = Conversation("assistant", voices["michael"])
     if mode == "text":
         await handle_text_in()
@@ -340,4 +408,3 @@ async def main():
 # Main execution
 if __name__ == "__main__":
     asyncio.get_event_loop().run_until_complete(main())
-

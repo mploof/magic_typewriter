@@ -2,7 +2,7 @@ import tiktoken
 
 encoding = tiktoken.get_encoding("cl100k_base")
 banned_words = [
-    "symphony", "silent", "tapestry", "whispered", "smile", "bustling", 
+    "sentinel", "symphony", "silent", "tapestry", "whispered", "smile", "bustling", 
     "navigating", "realm", "embark", "virtuoso", "vibrant", "nestled",
     "serene", "luminous", "labyrinthine", "luminous", "labyrinth",
     "soul", "enhance", "whispering", "testament", "underscore",
@@ -18,14 +18,12 @@ banned_words = [
     "in the heart of", "unyielding", "her fortress", "his fortress", "from another era",
     "bore witness", "brimming with", "to etch", "destinies", "unappologetic",
     "silent declaration", "instances of a 'city' performing actions", "unwavering",
-    "quiet act of"
+    "quiet act of", "standing as monuments to", "standing as a monument to", "quiet", "quiet challenge"
     ]
 banned_tokens = []
 
 for word in banned_words:
     banned_tokens.extend(encoding.encode(word))
-
-print(banned_tokens)
 
 def get_bias():
     bias = {}

@@ -1,11 +1,22 @@
 from huggingface_hub import AsyncInferenceClient
 import asyncio
 
-async def main_thread():
-    client = AsyncInferenceClient("mistralai/Mixtral-8x7B-Instruct-v0.1")
-    async for token in await client.text_generation("How do you make cheese?", stream=True):
-        print(token, end="", flush=True)
+client = AsyncInferenceClient("mistralai/Mixtral-8x7B-Instruct-v0.1")
 
+async def generate_text(prompt):
+    text = ""
+    async for token in await client.text_generation(prompt, stream=False):
+        print(token, end="", flush=True)
+        text += token
+    print()  # Ensure to print a newline after the full response is printed
+    print(f"\n[DEBUG] Full response: {text}")
+
+async def main_loop():
+    while True:
+        user_input = input("Enter your prompt (or 'exit' to quit): ")
+        if user_input.lower() == 'exit':
+            break
+        await generate_text(user_input)
 
 if __name__ == "__main__":
-    asyncio.get_event_loop().run_until_complete(main_thread())
+    asyncio.run(main_loop())
